@@ -45,6 +45,28 @@ export default function InventoryForm(){
     }
   }
 
+  async function deleteItem(itemId: string){
+    try {
+      await fetch(`/api/inventory/${itemId}`, { method: 'DELETE' })
+      fetchItems()
+    } catch (e) {
+      console.error('Error deleting item:', e)
+    }
+  }
+
+  async function resetAll(){
+    const confirmed = window.confirm('Möchten Sie wirklich alle Einträge löschen? Diese Aktion kann nicht rückgängig gemacht werden.')
+    if (!confirmed) return
+    
+    try {
+      // Lösche alle Items einzeln (oder implementiere später einen Batch-Endpunkt)
+      await Promise.all(items.map(it => fetch(`/api/inventory/${it.id}`, { method: 'DELETE' })))
+      fetchItems()
+    } catch (e) {
+      console.error('Error resetting inventory:', e)
+    }
+  }
+
   function exportCSV(){
     const rows = items.map(it => {
       const cat = categories.find(c => c.id === it.category_id)?.name || it.category_id
@@ -100,6 +122,7 @@ export default function InventoryForm(){
                 <tr>
                   <th style={{ border: '1px solid #ddd', padding: '10px', textAlign: 'left' }}>Kategorie</th>
                   <th style={{ border: '1px solid #ddd', padding: '10px', textAlign: 'center' }}>Anzahl</th>
+                  <th style={{ border: '1px solid #ddd', padding: '10px', textAlign: 'center' }}>Aktion</th>
                 </tr>
               </thead>
               <tbody>
@@ -111,16 +134,40 @@ export default function InventoryForm(){
                     <td style={{ border: '1px solid #ddd', padding: '10px', textAlign: 'center' }}>
                       {it.count}
                     </td>
+                    <td style={{ border: '1px solid #ddd', padding: '10px', textAlign: 'center' }}>
+                      <button
+                        onClick={() => deleteItem(it.id)}
+                        style={{
+                          padding: '4px 8px',
+                          cursor: 'pointer',
+                          backgroundColor: '#dc3545',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '3px',
+                          fontSize: '14px',
+                          fontWeight: 'bold'
+                        }}
+                        title="Zeile löschen"
+                      >
+                        ✕
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <div style={{ marginTop: '15px' }}>
+            <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
               <button
                 onClick={exportCSV}
                 style={{ padding: '8px 16px', cursor: 'pointer', backgroundColor: '#28a745', color: '#fff', border: 'none', borderRadius: '4px' }}
               >
                 Export CSV
+              </button>
+              <button
+                onClick={resetAll}
+                style={{ padding: '8px 16px', cursor: 'pointer', backgroundColor: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px' }}
+              >
+                Zurücksetzen
               </button>
             </div>
           </div>
