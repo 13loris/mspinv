@@ -4,19 +4,36 @@ type Category = { id: string; name: string }
 type Item = { id: string; category_id: string; count: number; notes?: string }
 
 export default function InventoryForm(){
-  const [categories, setCategories] = useState<Category[]>([])
+  // Predefined default categories per user request
+  const defaultCategories: Category[] = [
+    { id: 'cat-server', name: 'Server' },
+    { id: 'cat-pc', name: 'PC' },
+    { id: 'cat-notebook', name: 'Notebook' },
+    { id: 'cat-mobile', name: 'Mobiles Endgerät' },
+  ]
+
+  const [categories, setCategories] = useState<Category[]>(defaultCategories)
   const [name, setName] = useState('')
   const [items, setItems] = useState<Item[]>([])
-  const [selectedCat, setSelectedCat] = useState<string>('')
+  const [selectedCat, setSelectedCat] = useState<string>(defaultCategories[0].id)
   const [count, setCount] = useState(1)
 
   useEffect(()=>{ fetchCats(); fetchItems() }, [])
 
   async function fetchCats(){
-    const res = await fetch('/api/categories')
-    const data = await res.json()
-    setCategories(data)
-    if(data[0]) setSelectedCat(data[0].id)
+    try {
+      const res = await fetch('/api/categories')
+      if (!res.ok) return
+      const data = await res.json()
+      // Only override defaults if API returns categories
+      if (Array.isArray(data) && data.length > 0) {
+        setCategories(data)
+        setSelectedCat(data[0].id)
+      }
+    } catch (e) {
+      // Keep defaults on error
+      console.warn('Could not fetch remote categories, using defaults')
+    }
   }
   async function fetchItems(){
     const res = await fetch('/api/inventory')
