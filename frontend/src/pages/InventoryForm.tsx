@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react'
 
 type Category = { id: string; name: string }
-type Item = { id: string; category_id: string; count: number; notes?: string }
+type Item = { id: string; category_id: string; count: number; notes?: string; created_at?: string }
 
 export default function InventoryForm(){
-  // Predefined default categories per user request
+  // Fixed categories — not editable
   const defaultCategories: Category[] = [
     { id: 'cat-server', name: 'Server' },
     { id: 'cat-pc', name: 'PC' },
@@ -12,97 +12,123 @@ export default function InventoryForm(){
     { id: 'cat-mobile', name: 'Mobiles Endgerät' },
   ]
 
-  const [categories, setCategories] = useState<Category[]>(defaultCategories)
-  const [name, setName] = useState('')
+  const [categories] = useState<Category[]>(defaultCategories)
   const [items, setItems] = useState<Item[]>([])
   const [selectedCat, setSelectedCat] = useState<string>(defaultCategories[0].id)
   const [count, setCount] = useState(1)
 
-  useEffect(()=>{ fetchCats(); fetchItems() }, [])
+  useEffect(() => { fetchItems() }, [])
 
-  async function fetchCats(){
+  async function fetchItems(){
     try {
-      const res = await fetch('/api/categories')
-      if (!res.ok) return
-      const data = await res.json()
-      // Only override defaults if API returns categories
-      if (Array.isArray(data) && data.length > 0) {
-        setCategories(data)
-        setSelectedCat(data[0].id)
+      const res = await fetch('/api/inventory')
+      if (res.ok) {
+        setItems(await res.json())
       }
     } catch (e) {
-      // Keep defaults on error
-      console.warn('Could not fetch remote categories, using defaults')
+      console.warn('Could not fetch inventory items')
     }
-  }
-  async function fetchItems(){
-    const res = await fetch('/api/inventory')
-    setItems(await res.json())
-  }
-
-  async function addCategory(e: React.FormEvent){
-    e.preventDefault()
-    await fetch('/api/categories', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name }) })
-    setName('')
-    fetchCats()
   }
 
   async function addItem(e: React.FormEvent){
     e.preventDefault()
-    await fetch('/api/inventory', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ category_id: selectedCat, count, notes: '' }) })
-    setCount(1)
-    fetchItems()
+    try {
+      await fetch('/api/inventory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category_id: selectedCat, count, notes: '' })
+      })
+      setCount(1)
+      fetchItems()
+    } catch (e) {
+      console.error('Error adding item:', e)
+    }
   }
 
   function exportCSV(){
     const rows = items.map(it => {
-      const cat = categories.find(c=>c.id===it.category_id)?.name || it.category_id
+      const cat = categories.find(c => c.id === it.category_id)?.name || it.category_id
       return `${cat},${it.count}`
     })
-    const csv = 'Category,Count\n' + rows.join('\n')
+    const csv = 'Kategorie,Anzahl\n' + rows.join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url; a.download = 'inventory.csv'; a.click()
+    a.href = url
+    a.download = 'inventory.csv'
+    a.click()
     URL.revokeObjectURL(url)
   }
 
   return (
-    <div>
-      <section style={{marginBottom:20}}>
-        <h3>Kategorie anlegen</h3>
-        <form onSubmit={addCategory}>
-          <input value={name} onChange={e=>setName(e.target.value)} placeholder="Name" />
-          <button type="submit">Hinzufügen</button>
-        </form>
-      </section>
+    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
+      <h2>Inventarisierung</h2>
 
-      <section style={{marginBottom:20}}>
+      <section style={{ marginBottom: '30px', padding: '15px', border: '1px solid #ccc', borderRadius: '4px' }}>
         <h3>Inventar erfassen</h3>
         <form onSubmit={addItem}>
-          <label>Kategorie: </label>
-          <select value={selectedCat} onChange={e=>setSelectedCat(e.target.value)}>
-            {categories.map(c=> <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          <label style={{marginLeft:10}}>Anzahl: </label>
-          <input type="number" value={count} onChange={e=>setCount(Number(e.target.value))} min={1} />
-          <button type="submit">Hinzufügen</button>
+          <div style={{ marginBottom: '10px' }}>
+            <label>Kategorie: </label>
+            <select value={selectedCat} onChange={e => setSelectedCat(e.target.value)} style={{ padding: '5px', marginLeft: '10px' }}>
+              {categories.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ marginBottom: '10px' }}>
+            <label>Anzahl: </label>
+            <input
+              type="number"
+              value={count}
+              onChange={e => setCount(Math.max(1, Number(e.target.value)))}
+              min={1}
+              style={{ padding: '5px', marginLeft: '10px', width: '80px' }}
+            />
+          </div>
+          <button type="submit" style={{ padding: '8px 16px', cursor: 'pointer', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '4px' }}>
+            Hinzufügen
+          </button>
         </form>
       </section>
 
-      <section>
-        <h3>Liste</h3>
-        <table border={1} cellPadding={6}>
-          <thead><tr><th>Kategorie</th><th>Anzahl</th></tr></thead>
-          <tbody>
-            {items.map(it=> (
-              <tr key={it.id}><td>{categories.find(c=>c.id===it.category_id)?.name || it.category_id}</td><td>{it.count}</td></tr>
-            ))}
-          </tbody>
-        </table>
-        <div style={{marginTop:10}}>
-          <button onClick={exportCSV}>Export CSV</button>
-        </div>
+      <section style={{ marginBottom: '20px' }}>
+        <h3>Übersicht</h3>
+        {items.length > 0 ? (
+          <div>
+            <table style={{ borderCollapse: 'collapse', width: '100%', border: '1px solid #ddd' }}>
+              <thead style={{ backgroundColor: '#f5f5f5' }}>
+                <tr>
+                  <th style={{ border: '1px solid #ddd', padding: '10px', textAlign: 'left' }}>Kategorie</th>
+                  <th style={{ border: '1px solid #ddd', padding: '10px', textAlign: 'center' }}>Anzahl</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map(it => (
+                  <tr key={it.id}>
+                    <td style={{ border: '1px solid #ddd', padding: '10px' }}>
+                      {categories.find(c => c.id === it.category_id)?.name || it.category_id}
+                    </td>
+                    <td style={{ border: '1px solid #ddd', padding: '10px', textAlign: 'center' }}>
+                      {it.count}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ marginTop: '15px' }}>
+              <button
+                onClick={exportCSV}
+                style={{ padding: '8px 16px', cursor: 'pointer', backgroundColor: '#28a745', color: '#fff', border: 'none', borderRadius: '4px' }}
+              >
+                Export CSV
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ padding: '20px', color: '#999', fontStyle: 'italic' }}>
+            Keine Einträge vorhanden. Fügen Sie ein Inventar-Item hinzu.
+          </div>
+        )}
       </section>
     </div>
   )
