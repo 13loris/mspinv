@@ -5,6 +5,7 @@ import (
     "log"
     "net/http"
     "os"
+    "strings"
     "sync"
     "time"
 
@@ -98,16 +99,47 @@ func createInventory(w http.ResponseWriter, r *http.Request) {
     json.NewEncoder(w).Encode(it)
 }
 
+func deleteInventory(w http.ResponseWriter, r *http.Request, itemID string) {
+    mu.Lock()
+    defer mu.Unlock()
+
+    // Finde und lösche das Item mit der gegebenen ID
+    for i, it := range items {
+        if it.ID == itemID {
+            items = append(items[:i], items[i+1:]...)
+            w.Header().Set("Content-Type", "application/json")
+            w.WriteHeader(http.StatusOK)
+            w.Write([]byte(`{"success":true}`))
+            return
+        }
+    }
+
+    // Item nicht gefunden
+    http.Error(w, "item not found", http.StatusNotFound)
+}
+
 func main() {
     mux := http.NewServeMux()
+    
     mux.HandleFunc("/api/categories", func(w http.ResponseWriter, r *http.Request) {
         if r.Method == "GET" { listCategories(w, r); return }
         if r.Method == "POST" { createCategory(w, r); return }
         http.Error(w, "method", http.StatusMethodNotAllowed)
     })
+    
     mux.HandleFunc("/api/inventory", func(w http.ResponseWriter, r *http.Request) {
         if r.Method == "GET" { listInventory(w, r); return }
         if r.Method == "POST" { createInventory(w, r); return }
+        http.Error(w, "method", http.StatusMethodNotAllowed)
+    })
+
+    // DELETE-Endpunkt für einzelne Items
+    mux.HandleFunc("/api/inventory/", func(w http.ResponseWriter, r *http.Request) {
+        if r.Method == "DELETE" {
+            itemID := strings.TrimPrefix(r.URL.Path, "/api/inventory/")
+            deleteInventory(w, r, itemID)
+            return
+        }
         http.Error(w, "method", http.StatusMethodNotAllowed)
     })
 
